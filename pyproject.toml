@@ -5,13 +5,14 @@ description = "A chatbot interface running entirely with ipywidgets"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
+    "fastmcp>=2.12.5",
     "ipywidgets>=8.1.7",
     "markdown>=3.9",
+    "openai>=2.5.0",  # ✅ modern OpenAI SDK
 ]
 
 [project.optional-dependencies]
 dev = ["pytest", "ruff", "black", "jupyterlab"]
-
 
 [project.scripts]
 chatbot-widget = "chatbot_widget:main"
@@ -19,3 +20,8 @@ chatbot-widget = "chatbot_widget:main"
 [build-system]
 requires = ["uv_build>=0.9.4,<0.10.0"]
 build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "jupyterlab>=4.4.9",
+]

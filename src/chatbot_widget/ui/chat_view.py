@@ -3,49 +3,52 @@ from IPython.display import display, HTML
 from .components.chat_bubble import ChatBubble
 from .components.input_bar import InputBar
 from .components.scroll_box import ScrollBox
-from .components.renderers import render_code, render_json, collapsible
-
 
 
 class ChatView:
-    """Main chat UI layout (purely presentation)."""
-
+    """Main chat UI (publisher/subscriber pattern)."""
 
     def __init__(self):
-
-
+        # Core UI components
         self.chat_box = ScrollBox()
         self.input_bar = InputBar()
-        self.input_bar.button.on_click(self._handle_send)
 
+        # Observer callbacks
+        self._on_send_callback = None
+        self._on_receive_callback = None
+        self._on_response = None  # callback to UI
 
+        # Layout
         self.container = widgets.VBox(
             [self.chat_box, self.input_bar.widget],
             layout=widgets.Layout(
                 align_items="center",
                 width="100%",
-                max_width="900px",     # ✅ limit overall chat width
+                max_width="900px",
                 height="auto",
                 overflow="visible",
-                margin="0 auto",       # ✅ center horizontally
-                padding="20px",        # ✅ small breathing space
+                margin="0 auto",
+                padding="20px",
                 border="none",
                 flex_flow="column",
-                background="#c3c5c9",  # ✅ subtle light blue background
-                border_radius="12px",  # optional for softer edges
+                background="#c3c5c9",
+                border_radius="12px",
             ),
         )
 
+        # Welcome message
         welcome = widgets.HTML(
-            "<div style='text-align:center;color:#888;padding:12px;'>"
+            "<div style='text-align:center;color:#555;padding:12px;'>"
             "💬 <b>Welcome! How can I help you today?</b></div>"
         )
         self.chat_box.children = (welcome,)
 
-        
+        # Hook input button to handler
+        self.input_bar.button.on_click(self._handle_send)
+
+        # Inject small CSS tweak to prevent notebook scroll
         display(HTML("""
         <style>
-        /* remove notebook scroll on widget output */
         .jp-OutputArea-output, .jp-OutputArea-child, .widget-html-content {
             overflow: visible !important;
             max-height: none !important;
@@ -53,55 +56,41 @@ class ChatView:
         </style>
         """))
 
+    # ------------------------------------------------------------------ #
+    # Observer registration
+    # ------------------------------------------------------------------ #
+    def on_send(self, callback):
+        """Register callback(msg: str) when user sends a message."""
+        self._on_send_callback = callback
 
+    def on_receive(self, callback):
+        """Register callback(text: str, sender: str) to show responses."""
+        self._on_receive_callback = callback
 
-
-    # --- internal methods ---
+    # ------------------------------------------------------------------ #
+    # Internal event handling
+    # ------------------------------------------------------------------ #
     def _handle_send(self, _=None):
-        print("i am in send")
+        """Triggered when user clicks send."""
         text = self.input_bar.input.value.strip()
         if not text:
             return
+
+        # Display user message immediately
         self.chat_box.children += (ChatBubble(text, sender="user").widget,)
         self.input_bar.clear()
-        for w in self._respond(text):
-            self.chat_box.children += (w,)
 
-    def _respond(self, msg: str):
-        print("i am in respond")
-        msg_str = msg.strip()
-        m = msg_str.lower()
-        outputs = []
+        # Notify subscribers (e.g., controller)
+        if self._on_send_callback:
+            self._on_send_callback(text)
 
-        if m.startswith("python"):
-            code = """def hello_world():
-        print("Hello, world!")"""
-            content = render_code(code, "python").value
-            outputs.append(ChatBubble(content, sender="bot").widget)
+    # ------------------------------------------------------------------ #
+    # Public display / response methods
+    # ------------------------------------------------------------------ #
+    def receive_message(self, text: str, sender="bot"):
+        """Display a message (from controller)."""
+        self.chat_box.children += (ChatBubble(text, sender).widget,)
 
-        elif m.startswith("sql"):
-            code = """SELECT name, age
-    FROM users
-    WHERE active = TRUE
-    ORDER BY age DESC;"""
-            content = render_code(code, "sql").value
-            outputs.append(ChatBubble(content, sender="bot").widget)
-
-        elif "json" in m:
-            data = {"result": 4, "status": "ok"}
-            content = collapsible("JSON result", render_json(data).value).value
-            outputs.append(ChatBubble(content, sender="bot").widget)
-
-        elif "hello" in m:
-            outputs.append(ChatBubble("👋 **Hey there!**", sender="bot").widget)
-
-        else:
-            outputs.append(ChatBubble(f"Echo: `{msg_str}`", sender="bot").widget)
-
-        return outputs
-
-
-
-    # --- public methods ---
     def display(self):
+        """Render chat UI in the notebook."""
         display(self.container)

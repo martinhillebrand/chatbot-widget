@@ -65,7 +65,7 @@ class InputBar:
         )
 
         self.input = widgets.Textarea(
-            placeholder="Type a message…",
+            placeholder="Type a message… \nor use /help to see available commands",
             rows=3,
             layout=widgets.Layout(
                 flex="1",

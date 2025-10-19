@@ -6,6 +6,7 @@ __pycache__/
 *.egg-info/
 *.egg
 *.log
+.python-version
 
 # --- Build & packaging ---
 build/
@@ -17,6 +18,7 @@ wheels/
 venv/
 env/
 ENV/
+uv.lock
 
 # --- Jupyter / notebooks ---
 .ipynb_checkpoints/

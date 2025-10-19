@@ -1,11 +1,15 @@
 import ipywidgets as widgets
 from markdown import markdown
+from markdown.extensions.codehilite import CodeHiliteExtension
 
 class ChatBubble:
     """Single chat message bubble with subtle gradient and animation."""
 
     def __init__(self, text: str, sender: str = "bot"):
-        html = markdown(text, extensions=["fenced_code", "tables"])
+        html = markdown(
+            text,
+            extensions=["fenced_code", "tables", CodeHiliteExtension(noclasses=True, pygments_style="default")]
+        )
 
         if sender == "user":
             bg = "linear-gradient(135deg, #fff4e5 0%, #ffe1b3 100%)"
