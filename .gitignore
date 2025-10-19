@@ -1,0 +1,38 @@
+# --- Python ---
+__pycache__/
+*.py[ocd]
+*.pyo
+*.pyd
+*.egg-info/
+*.egg
+*.log
+
+# --- Build & packaging ---
+build/
+dist/
+wheels/
+
+# --- Virtual environments ---
+.venv/
+venv/
+env/
+ENV/
+
+# --- Jupyter / notebooks ---
+.ipynb_checkpoints/
+dev/*.ipynb
+
+# --- OS / Editor junk ---
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+# macOS
+.DS_Store
+.AppleDouble
+.Spotlight-V100
+.Trashes
+# VS Code & editors
+.vscode/
+.history/
+.idea/

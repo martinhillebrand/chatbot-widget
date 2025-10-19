@@ -1,0 +1,21 @@
+[project]
+name = "chatbot-widget"
+version = "0.1.0"
+description = "A chatbot interface running entirely with ipywidgets"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "ipywidgets>=8.1.7",
+    "markdown>=3.9",
+]
+
+[project.optional-dependencies]
+dev = ["pytest", "ruff", "black", "jupyterlab"]
+
+
+[project.scripts]
+chatbot-widget = "chatbot_widget:main"
+
+[build-system]
+requires = ["uv_build>=0.9.4,<0.10.0"]
+build-backend = "uv_build"
