@@ -7,6 +7,10 @@ requires-python = ">=3.10"
 dependencies = [
     "fastmcp>=2.12.5",
     "ipywidgets>=8.1.7",
+    "langchain>=1.0.0",
+    "langchain-mcp-adapters>=0.1.11",
+    "langchain-openai>=1.0.0",
+    "langgraph>=1.0.0",
     "markdown>=3.9",
     "openai>=2.5.0", # ✅ modern OpenAI SDK
     "pyfiglet>=1.0.4",

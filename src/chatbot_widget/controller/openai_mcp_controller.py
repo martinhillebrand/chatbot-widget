@@ -1,126 +1,111 @@
 import json
-import requests
 from openai import OpenAI
 from .openai_controller import OpenAIController
 
 
 class OpenAIMCPController(OpenAIController):
-    """OpenAI controller with MCP tool integration."""
+    """OpenAI controller with integrated MCPServerManager support."""
 
-    def __init__(self, model: str = "gpt-4o-mini"):
+    def __init__(self, mcp_manager, model: str = "gpt-4.1"):
         super().__init__(model=model)
-        self.mcp_servers = {}  # name -> {"base_url": str, "tools": list}
+        self.mcp_manager = mcp_manager  # existing MCPServerManager instance
 
     # ---------------------------------------------------------------
-    # MCP server management
-    # ---------------------------------------------------------------
-    def register_mcp_server(self, name: str, base_url: str):
-        """Register an MCP server and discover available tools."""
-        try:
-            resp = requests.get(f"{base_url}/tools")
-            if resp.status_code != 200:
-                raise RuntimeError(f"Failed to reach MCP server {name}: {resp.status_code}")
-            data = resp.json()
-            tools = data.get("tools", [])
-            self.mcp_servers[name] = {"base_url": base_url.rstrip("/"), "tools": tools}
-            return f"🔗 Registered MCP server **{name}** with {len(tools)} tool(s)."
-        except Exception as e:
-            return f"⚠️ Error registering MCP server {name}: {e}"
-
-    # ---------------------------------------------------------------
-    # Command handler (extended)
+    # Command handler
     # ---------------------------------------------------------------
     def _execute_command(self, command: str):
-        """Handle extended commands including MCP tools."""
-        cmd = command.lower().strip()
+        """Handle commands including MCP interactions."""
+        cmd = command.strip()
 
-        # --- existing commands ---
         if cmd in ("/clear", "/reset"):
             self.history.clear()
-            return "🧹 Conversation history cleared."
+            return "Conversation history cleared."
 
         elif cmd in ("/help", "/?"):
             return (
-                "**Available commands:**\n\n"
-                "- `/help`: show this help\n"
-                "- `/clear`: clear conversation\n"
-                "- `/context`: show stored conversation\n"
-                "- `/mcp`: list registered MCP servers\n"
-                "- `/mcp <server>`: show tools for one server\n"
+                "Available commands:\n"
+                "- /help           Show this help\n"
+                "- /clear          Clear conversation\n"
+                "- /context        Show stored conversation\n"
+                "- /mcp            List MCP servers\n"
+                "- /mcp <server>   List tools for a server\n"
             )
 
         elif cmd == "/context":
             if not self.history:
-                return "_(no context stored)_"
-            formatted_blocks = []
+                return "(no context stored)"
+            blocks = []
             for m in self.history[-5:]:
                 role = m["role"].capitalize()
-                content = m["content"].strip()
-                formatted_blocks.append(f"**{role}:**\n\n{content}")
-            separator = '<hr style="border:none;border-top:1px solid #a8c7ff;margin:6px 0;">'
-            return f"🧠 **Current context (last 5):**\n\n{separator.join(formatted_blocks)}"
+                blocks.append(f"{role}:\n{m['content']}\n")
+            return "Current context (last 5):\n\n" + "\n".join(blocks)
 
-        # --- new MCP commands ---
         elif cmd.startswith("/mcp"):
             parts = cmd.split()
+            servers = self.mcp_manager._servers
+
             if len(parts) == 1:
-                if not self.mcp_servers:
-                    return "⚠️ No MCP servers registered."
-                msg = ["🧩 **Registered MCP servers:**"]
-                for name, info in self.mcp_servers.items():
-                    msg.append(f"- **{name}** → {info['base_url']} ({len(info['tools'])} tools)")
+                if not servers:
+                    return "No MCP servers are currently registered."
+                msg = ["Registered MCP servers:"]
+                for name, info in servers.items():
+                    msg.append(f"- {name}: port={info.get('port')}")
                 return "\n".join(msg)
-            else:
+
+            # /mcp <server>
+            elif len(parts) == 2:
                 name = parts[1]
-                server = self.mcp_servers.get(name)
-                if not server:
-                    return f"⚠️ No MCP server named '{name}'."
-                msg = [f"🧩 **Tools for {name}:**"]
-                for t in server["tools"]:
-                    desc = t.get("description", "")
-                    params = ", ".join(t.get("input_schema", {}).get("properties", {}).keys())
-                    msg.append(f"- `{t['name']}({params})` — {desc}")
-                return "\n".join(msg)
+                if name not in servers:
+                    return f"No MCP server named '{name}'."
+                try:
+                    tools = self.mcp_manager.list_tools(name)
+                    return f"Tools for server '{name}':\n" + str(tools)
+                except Exception as e:
+                    return f"Error listing tools for '{name}': {e}"
+
+            else:
+                return "Invalid MCP command. Use '/mcp' or '/mcp <server>'."
 
         else:
-            return f"❓ Unknown command: `{command}`"
+            return f"Unknown command: {command}"
 
     # ---------------------------------------------------------------
-    # Main entrypoint (override)
+    # Chat + tool handling
     # ---------------------------------------------------------------
     def handle_input(self, msg: str):
-        """Handle normal chat + tool-calling."""
+        """Handle new user input and possible tool calls."""
         if not msg.strip():
             return
 
         if msg.startswith("/"):
-            reply = self._execute_command(msg.strip())
+            reply = self._execute_command(msg)
             if self._on_response:
                 self._on_response(reply)
             return
 
-        # normal message flow
+        # Add user message
         self.history.append({"role": "user", "content": msg})
-        tools = self._get_all_tools()
 
         try:
+            tools = self._get_all_tools()
             response = self.client.chat.completions.create(
                 model=self.model,
                 messages=self.history,
                 tools=tools if tools else None,
             )
-
             message = response.choices[0].message
 
-            # handle tool calls if any
+            # --- Tool call ---
             if hasattr(message, "tool_calls") and message.tool_calls:
                 for call in message.tool_calls:
                     tool_name = call.function.name
                     args = json.loads(call.function.arguments or "{}")
                     result = self._call_mcp_tool(tool_name, args)
-                    self.history.append({"role": "assistant", "content": f"🧩 Tool result:\n\n{result}"})
+                    self.history.append(
+                        {"role": "assistant", "content": f"Tool result:\n{result}"}
+                    )
                     if self._on_response:
-                        self._on_response(f"🧩 **Tool `{tool_name}` result:**\n\n{result}")
+                        self._on_response(f"Tool result:\n{result}")
             else:
                 reply = message.content
                 self.history.append({"role": "assistant", "content": reply})
@@ -129,38 +114,41 @@ class OpenAIMCPController(OpenAIController):
 
         except Exception as e:
             if self._on_response:
-                self._on_response(f"⚠️ Error: {e}")
+                self._on_response(f"Error: {e}")
 
     # ---------------------------------------------------------------
-    # Helpers
+    # Helper methods
     # ---------------------------------------------------------------
     def _get_all_tools(self):
-        """Return all MCP tools in OpenAI-compatible format."""
+        """Collect all tools from MCPServerManager."""
         tools = []
-        for srv in self.mcp_servers.values():
-            for t in srv["tools"]:
-                func = {
-                    "type": "function",
-                    "function": {
-                        "name": t["name"],
-                        "description": t.get("description", ""),
-                        "parameters": t.get("input_schema", {}),
-                    },
-                }
-                tools.append(func)
+        for name in self.mcp_manager._servers.keys():
+            try:
+                tool_objs = self.mcp_manager.list_tools(name)
+                for t in tool_objs.tools:  # FastMCP returns a model with .tools
+                    tools.append(
+                        {
+                            "type": "function",
+                            "function": {
+                                "name": t.name,
+                                "description": getattr(t, "description", ""),
+                                "parameters": getattr(t, "inputSchema", {}),
+                            },
+                        }
+                    )
+            except Exception:
+                continue
         return tools
 
     def _call_mcp_tool(self, tool_name: str, args: dict):
-        """Find and call a matching MCP tool by name."""
-        for name, srv in self.mcp_servers.items():
-            for t in srv["tools"]:
-                if t["name"] == tool_name:
-                    url = f"{srv['base_url']}/tools/{tool_name}"
-                    try:
-                        resp = requests.post(url, json=args)
-                        if resp.status_code != 200:
-                            return f"Error {resp.status_code}: {resp.text}"
-                        return json.dumps(resp.json(), indent=2)
-                    except Exception as e:
-                        return f"⚠️ Error calling {tool_name} on {name}: {e}"
-        return f"⚠️ Tool '{tool_name}' not found in any registered MCP server."
+        """Find and execute tool via MCPServerManager.test_tool."""
+        for name in self.mcp_manager._servers.keys():
+            try:
+                tools = self.mcp_manager.list_tools(name)
+                for t in tools.tools:
+                    if t.name == tool_name:
+                        result = self.mcp_manager.test_tool(name, tool_name, args)
+                        return str(result)
+            except Exception:
+                continue
+        return f"Tool '{tool_name}' not found in any MCP server."

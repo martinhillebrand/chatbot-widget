@@ -12,7 +12,7 @@ mcp.start(
     "random",
     "src/chatbot_widget/mcp/random_server.py",
     port=8765,
-    seed=42
+    seed=42 # optional
 )
 """
 

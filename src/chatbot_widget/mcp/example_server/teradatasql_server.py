@@ -22,8 +22,6 @@ from fastmcp import FastMCP
 import teradatasql
 import argparse
 import sys
-import atexit
-import signal
 
 mcp = FastMCP("Teradata SQL MCP Server")
 
@@ -64,20 +62,6 @@ def _disconnect():
             return f"Error while disconnecting: {e}"
     else:
         return "No active connection."
-
-
-def _cleanup(*_):
-    """Ensure DB connection is closed on shutdown or termination."""
-    print("[Cleanup] Triggered shutdown handler.")
-    msg = _disconnect()
-    print(f"[Cleanup] {msg}")
-    sys.exit(0)
-
-
-# Register cleanup handlers
-atexit.register(_cleanup)
-signal.signal(signal.SIGTERM, _cleanup)
-signal.signal(signal.SIGINT, _cleanup)
 
 
 # ------------------------------------------------------------------

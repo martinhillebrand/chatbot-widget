@@ -3,6 +3,7 @@ from IPython.display import display, HTML
 from .components.chat_bubble import ChatBubble
 from .components.input_bar import InputBar
 from .components.scroll_box import ScrollBox
+from .components.renderers import collapsible
 
 
 class ChatView:
@@ -16,7 +17,6 @@ class ChatView:
         # Observer callbacks
         self._on_send_callback = None
         self._on_receive_callback = None
-        self._on_response = None  # callback to UI
 
         # Layout
         self.container = widgets.VBox(
@@ -88,8 +88,25 @@ class ChatView:
     # Public display / response methods
     # ------------------------------------------------------------------ #
     def receive_message(self, text: str, sender="bot"):
-        """Display a message (from controller)."""
+        """Display a message (from controller).
+        If it is from the bot and a tool call or result, 
+        it'll be put in a collapsable.
+        """
         self.chat_box.children += (ChatBubble(text, sender).widget,)
+
+    def receive_tool_call(self, tool_name: str, tool_args):
+        """
+        Displays the tool call.
+        """
+        toolcall_widget = collapsible(f"🔧 Tool call: {tool_name}", tool_args )
+        self.chat_box.children += (toolcall_widget, )
+    
+    def receive_tool_reply(self, tool_reply):
+        """
+        Displays the tool reply
+        """
+        toolreply_widget = collapsible(f"📦 Tool result", tool_reply )
+        self.chat_box.children += (toolreply_widget, )
 
     def display(self):
         """Render chat UI in the notebook."""
