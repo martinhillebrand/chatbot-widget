@@ -8,7 +8,9 @@ dependencies = [
     "fastmcp>=2.12.5",
     "ipywidgets>=8.1.7",
     "markdown>=3.9",
-    "openai>=2.5.0",  # ✅ modern OpenAI SDK
+    "openai>=2.5.0", # ✅ modern OpenAI SDK
+    "pyfiglet>=1.0.4",
+    "teradatasql>=20.0.0.44",
 ]
 
 [project.optional-dependencies]
