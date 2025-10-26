@@ -1,0 +1,22 @@
+# MCPServerManager
+-  add documentation to functions, docstrings etc with good examples
+- add a function to display the source code of a fastmcp server .py
+- add a function to see the command line args of the main function of a server (so one can set them properly)
+
+
+# ChatMCPController
+- other models then openai
+- show waiting for answer in ui
+- be interruptable
+- step by step output forwarded
+- nexr tlevel, also token streaming shown (but ui needs to be able to do that)
+
+
+# UI (ChatView)
+- able to show spinning wheel for wating
+- able to Interrupt process of agent
+- continous delivery of results
+- tool call and answer below (with time)
+- support of rendering SVG images / charts
+- remove elements / attributes that are wrong (see warning on CSAE)
+
