@@ -10,9 +10,23 @@ from chatbot_widget.utils.utils import run_async
 from chatbot_widget.mcp.server_manager import MCPServerManager
 
 class ChatMCPController:
-    
-    def __init__(self, mcp_server_manager: MCPServerManager, model: str = "openai:gpt-5"): 
+
+    def __init__(self, mcp_server_manager: MCPServerManager, model: str = "openai:gpt-5"):
+        """Initialize the MCP chat controller.
+
+        Args:
+            mcp_server_manager: Manager that coordinates available MCP servers.
+            model: Identifier for the chat model. Currently only OpenAI models are supported
+                (for example: openai:gpt-4o-mini, openai:gpt-4o, openai:gpt-4.1-mini, openai:gpt-5).
+
+        Raises:
+            ValueError: If the provided model is not an OpenAI model.
+        """
         self.mcp = mcp_server_manager
+        if not model.startswith("openai:"):
+            raise ValueError(
+                f"Only OpenAI chat interfaces are supported for now. Received '{model}'."
+            )
         self.model = model
         self._seen_msgs = 0  # message counter
 
@@ -53,7 +67,11 @@ class ChatMCPController:
             self.ui.receive_message(reply)
             return
 
+        self.ui.set_busy(True)
+        self.ui.show_waiting_indicator()
+
         try:
+            print("trying send ", msg)
             result = run_async(
                 self.agent.ainvoke(
                     {"messages": [{"role": "user", "content": msg}]},
@@ -69,21 +87,40 @@ class ChatMCPController:
                 if hasattr(m, "tool_calls") and m.tool_calls:
                     for call in m.tool_calls:
                         tool_name = call["name"]
+                        call_id = (
+                            call.get("id")
+                            if isinstance(call, dict)
+                            else getattr(call, "id", None)
+                        )
+                        if not call_id:
+                            call_id = tool_name or "tool_call"
+                        call_id = str(call_id)
                         server_name = self.lookup_tool_server.get(tool_name)
                         full_tool_name = f"{server_name}::{tool_name}"
                         tool_args = str(call["args"])
-                        self.ui.receive_tool_call(full_tool_name, tool_args)
+                        self.ui.receive_tool_call(call_id, full_tool_name, tool_args)
                 elif getattr(m, "name", None) and m.__class__.__name__ == "ToolMessage":
-                    self.ui.receive_tool_reply(m.content)
+                    tool_name = getattr(m, "tool_name", None)
+                    call_id = (
+                        getattr(m, "tool_call_id", None)
+                        or getattr(m, "id", None)
+                        or getattr(m, "name", None)
+                        or tool_name
+                    )
+                    call_id = str(call_id) if call_id is not None else "tool"
+                    self.ui.receive_tool_reply(call_id, tool_name, m.content)
                 elif (
                     m.__class__.__name__ == "AIMessage"
                     and m.content
                     and len(m.content) > 0
                 ):
+                    print(m.content)
                     self.ui.receive_message(m.content, "bot")
 
         except Exception as e:
             self.ui.receive_message(f"⚠️ Error: {e}", "bot")
+        finally:
+            self.ui.set_busy(False)
       
     # ---------------------------------------------------------------
     # Command handler
@@ -96,18 +133,18 @@ class ChatMCPController:
 
         if cmd == "/help":
             return self.__command_help()
-        elif cmd == "/context":
-            return self.__command_context()
+        #elif cmd == "/context":
+        #    return self.__command_context()
         elif cmd == "/clear":
             return self.__command_clear()
         elif cmd == "/servers":
             return self.__command_servers()
-        elif cmd == "/logs":
-            return self.__command_logs(*args)
+        #elif cmd == "/logs":
+        #    return self.__command_logs(*args)
         elif cmd == "/tools":
             return self.__command_tools()
-        elif cmd == "/testtool":
-            return self.__command_testtool(*args)
+        #elif cmd == "/testtool":
+        #    return self.__command_testtool(*args)
         elif cmd == "/checkall":
             return self.__command_checkall()
         else:
@@ -119,19 +156,18 @@ class ChatMCPController:
     # -----------------------------
 
     def __command_help(self):
+        print("command triggered")
         cmds = {
             "/help": "Show this help message",
-            "/context": "Show current conversation context",
+            #"/context": "Show current conversation context",
             "/clear": "Clear conversation history",
             "/servers": "List running MCP servers",
-            "/logs <server> [n]": "Show last n log lines for a server",
+            #"/logs <server> [n]": "Show last n log lines for a server",
             "/tools": "List all available MCP tools",
-            "/testtool <server> <tool> [args_json]": "Call an MCP tool directly",
+            #"/testtool <server> <tool> [args_json]": "Call an MCP tool directly",
             "/checkall": "Check health of all servers",
         }
         return "\n".join([f"- **{k}** {v}" for k, v in cmds.items()])
-
-    # TODO debug all commands, in particular those with args and the context
 
     def __command_context(self):
         return "🧠 Context inspection not yet implemented."
