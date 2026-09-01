@@ -2,6 +2,7 @@ import asyncio
 import json
 from langchain_mcp_adapters.client import MultiServerMCPClient
 from langchain.agents import create_agent
+from langchain_openai import ChatOpenAI
 from langgraph.checkpoint.memory import InMemorySaver
 
 from chatbot_widget.ui.chat_view import ChatView 
@@ -11,23 +12,26 @@ from chatbot_widget.mcp.server_manager import MCPServerManager
 
 class ChatMCPController:
 
-    def __init__(self, mcp_server_manager: MCPServerManager, model: str = "openai:gpt-5"):
+    def __init__(
+        self,
+        mcp_server_manager: MCPServerManager,
+        model: str = "gpt-5",
+        base_url: str | None = None,
+        api_key: str | None = None,
+    ):
         """Initialize the MCP chat controller.
 
         Args:
             mcp_server_manager: Manager that coordinates available MCP servers.
-            model: Identifier for the chat model. Currently only OpenAI models are supported
-                (for example: openai:gpt-4o-mini, openai:gpt-4o, openai:gpt-4.1-mini, openai:gpt-5).
-
-        Raises:
-            ValueError: If the provided model is not an OpenAI model.
+            model: Model identifier accepted by the configured OpenAI-compatible API.
+            base_url: Base URL of an OpenAI-compatible API, such as a LiteLLM proxy
+                or OpenRouter. Defaults to the official OpenAI API.
+            api_key: API key for the endpoint. Defaults to the ``OPENAI_API_KEY``
+                environment variable.
         """
         self.mcp = mcp_server_manager
-        if not model.startswith("openai:"):
-            raise ValueError(
-                f"Only OpenAI chat interfaces are supported for now. Received '{model}'."
-            )
         self.model = model
+        self.base_url = base_url
         self._seen_msgs = 0  # message counter
 
         self.lookup_tool_server = self.mcp.get_tool_server_dict()
@@ -45,7 +49,8 @@ class ChatMCPController:
         self.ui = ChatView()
 
         all_tools = run_async(self.client.get_tools())
-        self.agent = create_agent(self.model, all_tools, checkpointer=InMemorySaver())
+        chat_model = ChatOpenAI(model=model, base_url=base_url, api_key=api_key)
+        self.agent = create_agent(chat_model, all_tools, checkpointer=InMemorySaver())
 
         # connect UI
         self.ui.on_send(self.handle_input)
